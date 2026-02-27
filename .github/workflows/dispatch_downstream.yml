@@ -1,13 +1,13 @@
 name: Dispatch new case downstream
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "out/latest_case.json"
+  workflow_run:
+    workflows: ["DungeonCourtroom RSS ingest (6h)"]
+    types: [completed]
+  workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: dispatch-${{ github.ref }}
@@ -15,15 +15,17 @@ concurrency:
 
 jobs:
   dispatch:
-    # Only dispatch when ingest bot produced the commit
-    if: github.actor == 'github-actions[bot]' || contains(github.event.head_commit.message, 'Ingest RSS update')
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout (main)
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
-      - name: Build dispatch payload
+      - name: Load latest_case + dedupe
         shell: bash
         run: |
           set -euo pipefail
@@ -31,26 +33,68 @@ jobs:
           import json
           from pathlib import Path
 
-          src = Path("out/latest_case.json")
-          if not src.exists():
-            raise SystemExit("Missing out/latest_case.json")
+          latest = Path("out/latest_case.json")
+          if not latest.exists():
+              raise SystemExit("Missing out/latest_case.json")
 
-          data = json.loads(src.read_text(encoding="utf-8"))
-
-          # Basic validation (fail fast)
+          data = json.loads(latest.read_text(encoding="utf-8"))
           post_id = (data.get("post_id") or "").strip()
           if not post_id:
-            raise SystemExit("post_id empty; refusing to dispatch")
+              raise SystemExit("post_id empty; refusing to dispatch")
+
+          state_path = Path("state/last_dispatched.json")
+          last = {}
+          if state_path.exists():
+              try:
+                  last = json.loads(state_path.read_text(encoding="utf-8")) or {}
+              except Exception:
+                  last = {}
+
+          last_id = (last.get("post_id") or "").strip()
+          if last_id == post_id:
+              print(f"Already dispatched post_id={post_id}; exiting.")
+              Path("DISPATCH_SKIP").write_text("1", encoding="utf-8")
+              raise SystemExit(0)
 
           payload = {k: data.get(k, "") for k in [
-            "post_id","title","case_text","content_text","url","author","published","ingested_utc"
+              "post_id","title","case_text","content_text","url","author","published","ingested_utc"
           ]}
 
-          Path("dispatch_payload.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-          print("Dispatch payload written: dispatch_payload.json")
+          Path("dispatch_payload.json").write_text(
+              json.dumps(payload, ensure_ascii=False, indent=2),
+              encoding="utf-8"
+          )
+
+          state_path.parent.mkdir(parents=True, exist_ok=True)
+          state_path.write_text(json.dumps({"post_id": post_id}, indent=2), encoding="utf-8")
+
+          print(f"Prepared dispatch payload for post_id={post_id}")
           PY
 
+      - name: Commit dispatch state (last_dispatched.json)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f DISPATCH_SKIP ]; then
+            echo "Skip commit; already dispatched."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add state/last_dispatched.json
+          if git diff --cached --quiet; then
+            echo "No dispatch state changes."
+            exit 0
+          fi
+
+          git commit -m "Dispatch state: update last_dispatched"
+          git pull --rebase origin main
+          git push
+
       - name: Dispatch to downstream repo
+        if: ${{ !hashFiles('DISPATCH_SKIP') }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.DOWNSTREAM_DISPATCH_TOKEN }}

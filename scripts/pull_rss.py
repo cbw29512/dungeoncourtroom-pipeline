@@ -122,17 +122,20 @@ def strip_tags_and_decode_keep_newlines(s: str) -> str:
 
 def normalize_reddit_rss_text(text: str) -> str:
     """
-    Strip Reddit RSS boilerplate reliably, even when it appears on separate lines:
-      - 'submitted by /u/name'
-      - '[link]' / '[comments]'
-      - 'link' / 'comments' (sometimes without brackets)
+    Strip Reddit RSS boilerplate reliably:
+      - 'submitted by /u/name' (inline or standalone line)
+      - '[link]' / '[comments]' (inline or standalone)
+      - 'link' / 'comments' on their own line (rare)
     """
     t = (text or "").strip()
     if not t:
         return ""
 
-    # First, remove any inline "submitted by /u/..." tail (single-line case)
+    # Remove any inline "submitted by /u/..." tail
     t = re.sub(r"(?i)\s*submitted by\s*/?u/\S+.*$", "", t).strip()
+
+    # Remove inline [link]/[comments] anywhere in the text (same-line case)
+    t = re.sub(r"(?i)\s*\[(link|comments?)\]\s*", " ", t).strip()
 
     cleaned_lines: List[str] = []
     for raw in t.splitlines():
@@ -140,17 +143,20 @@ def normalize_reddit_rss_text(text: str) -> str:
         if not line:
             continue
 
-        # Remove "submitted by ..." lines (multiline case)
+        # Remove "submitted by ..." lines
         if re.match(r"(?i)^submitted by\s*/?u/\S+", line):
             continue
 
-        # Remove link/comments tokens (with or without brackets)
+        # Remove link/comments tokens if they survive as whole lines
         if re.match(r"(?i)^\[(link|comments?)\]$", line):
             continue
         if re.match(r"(?i)^(link|comments?)$", line):
             continue
 
-        cleaned_lines.append(line)
+        # Final cleanup: collapse extra spaces created by removals
+        line = re.sub(r"\s+", " ", line).strip()
+        if line:
+            cleaned_lines.append(line)
 
     return "\n".join(cleaned_lines).strip()
 

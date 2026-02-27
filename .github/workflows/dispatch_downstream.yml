@@ -100,4 +100,4 @@ jobs:
           token: ${{ secrets.DOWNSTREAM_DISPATCH_TOKEN }}
           repository: ${{ vars.DOWNSTREAM_REPO }}
           event-type: dungeoncourtroom_new_case
-          client-payload-file: dispatch_payload.json
+          client-payload: ${{ steps.payload.outputs.client_payload }}

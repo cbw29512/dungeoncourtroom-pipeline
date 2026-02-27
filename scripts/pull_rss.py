@@ -9,19 +9,39 @@ from typing import Dict, List, Optional
 
 import requests
 
+# =========================
+# Data schema + state logic
+# =========================
+# state/seen.json
+#   { "<post_id>": true, ... }
+#
+# out/latest_case.json
+#   {
+#     "ingested_utc": "...",
+#     "post_id": "...",
+#     "title": "...",
+#     "author": "...",
+#     "published": "...",
+#     "url": "...",
+#     "content_text": "...",   # decoded + tag-stripped text from RSS content
+#     "case_text": "..."       # best-effort text to feed into the courtroom
+#   }
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("pull_rss")
 
 RSS_URL = "https://www.reddit.com/r/DungeonCourtroom/new/.rss"
 USER_AGENT = "DungeonCourtroomPipeline/0.1 (+https://www.youtube.com/@DungeonCourtroom)"
-CASE_TITLE_PREFIX = "Case Submission:"  # RSS has no flair; we rely on this
+CASE_TITLE_PREFIX = "Case Submission:"  # RSS has no flair; we rely on this marker
 
 ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 STATE_PATH = "state/seen.json"
 OUT_PATH = "out/latest_case.json"
 
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
 
 def load_seen() -> Dict[str, bool]:
     try:
@@ -34,6 +54,7 @@ def load_seen() -> Dict[str, bool]:
         log.exception("Failed to read %s", STATE_PATH)
         return {}
 
+
 def save_seen(seen: Dict[str, bool]) -> None:
     try:
         os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
@@ -43,6 +64,7 @@ def save_seen(seen: Dict[str, bool]) -> None:
         log.exception("Failed to write %s", STATE_PATH)
         raise
 
+
 def fetch_rss() -> str:
     try:
         r = requests.get(RSS_URL, headers={"User-Agent": USER_AGENT}, timeout=25)
@@ -51,20 +73,58 @@ def fetch_rss() -> str:
     except Exception:
         log.exception("RSS fetch failed")
         raise
+
+
 def strip_tags_and_decode(s: str) -> str:
-    # Remove HTML tags
+    """
+    RSS content is HTML. We:
+      1) remove tags
+      2) decode entities like &#32; and &amp;
+      3) normalize whitespace
+    """
     s = re.sub(r"<[^>]+>", " ", s or "")
-    # Decode HTML entities like &#32; and &amp;
     s = html.unescape(s)
-    # Collapse whitespace
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
+
+def normalize_reddit_rss_text(text: str) -> str:
+    """
+    Reddit RSS content often looks like:
+      '<p>text</p> submitted by /u/name [link] [comments]'
+    Strip the boilerplate.
+    """
+    t = (text or "").strip()
+
+    # Remove the common "submitted by /u/..." tail (and anything after it)
+    t = re.sub(r"\s*submitted by\s*/u/\S+.*$", "", t, flags=re.IGNORECASE).strip()
+
+    # Remove trailing bracket tokens if they survive
+    t = re.sub(r"\s*\[(link|comments)\]\s*$", "", t, flags=re.IGNORECASE).strip()
+
+    return t
+
+
+def build_case_text(title: str, content_text: str) -> str:
+    """
+    Prefer cleaned content; fallback to title minus the 'Case Submission:' prefix.
+    """
+    ct = normalize_reddit_rss_text(content_text).strip()
+    if len(ct) >= 20:
+        return ct
+
+    t = (title or "").strip()
+    if t.lower().startswith(CASE_TITLE_PREFIX.lower()):
+        return t[len(CASE_TITLE_PREFIX) :].strip()
+
+    return ct
 
 
 def parse_entries(xml_text: str) -> List[dict]:
     try:
         root = ET.fromstring(xml_text)
-        out = []
+        out: List[dict] = []
+
         for entry in root.findall("a:entry", ATOM_NS):
             post_id = (entry.findtext("a:id", default="", namespaces=ATOM_NS) or "").strip()
             title = (entry.findtext("a:title", default="", namespaces=ATOM_NS) or "").strip()
@@ -75,7 +135,8 @@ def parse_entries(xml_text: str) -> List[dict]:
             url = (link_el.get("href") if link_el is not None else "") or ""
 
             content_html = (entry.findtext("a:content", default="", namespaces=ATOM_NS) or "")
-            content_text = strip_tags(content_html)
+            content_text = strip_tags_and_decode(content_html)
+            case_text = build_case_text(title, content_text)
 
             out.append(
                 {
@@ -85,23 +146,32 @@ def parse_entries(xml_text: str) -> List[dict]:
                     "published": published,
                     "url": url,
                     "content_text": content_text,
+                    "case_text": case_text,
                 }
             )
+
         return out
     except Exception:
         log.exception("RSS parse failed")
         raise
 
+
 def pick_next_case(entries: List[dict], seen: Dict[str, bool]) -> Optional[dict]:
     for e in entries:
-        if CASE_TITLE_PREFIX.lower() not in (e["title"] or "").lower():
+        if CASE_TITLE_PREFIX.lower() not in (e.get("title") or "").lower():
             continue
-        if not e["post_id"]:
+
+        post_id = (e.get("post_id") or "").strip()
+        if not post_id:
             continue
-        if seen.get(e["post_id"], False):
+
+        if seen.get(post_id, False):
             continue
+
         return e
+
     return None
+
 
 def write_latest(case: dict) -> None:
     try:
@@ -114,33 +184,6 @@ def write_latest(case: dict) -> None:
         log.exception("Failed to write %s", OUT_PATH)
         raise
 
-def normalize_reddit_rss_text(text: str) -> str:
-    """
-    Reddit RSS content often looks like:
-      '... submitted by /u/name [link] [comments]'
-    We strip that boilerplate if present.
-    """
-    t = text or ""
-    # Remove the common "submitted by" suffix chunk
-    t = re.sub(r"\s*submitted by\s*/u/\S+.*$", "", t, flags=re.IGNORECASE).strip()
-    # Remove trailing bracket tokens if they survive
-    t = re.sub(r"\s*\[(link|comments)\]\s*$", "", t, flags=re.IGNORECASE).strip()
-    return t
-
-def build_case_text(title: str, content_text: str) -> str:
-    """
-    Prefer cleaned content; fallback to title minus prefix.
-    """
-    ct = normalize_reddit_rss_text(content_text).strip()
-    if len(ct) >= 20:
-        return ct
-
-    # Fallback: use title after "Case Submission:" if present
-    t = (title or "").strip()
-    if t.lower().startswith(CASE_TITLE_PREFIX.lower()):
-        return t[len(CASE_TITLE_PREFIX):].strip()
-
-    return ct
 
 def main() -> int:
     try:
@@ -158,6 +201,7 @@ def main() -> int:
                     "published": "",
                     "url": "",
                     "content_text": "",
+                    "case_text": "",
                 }
             )
             return 0
@@ -168,7 +212,9 @@ def main() -> int:
         log.info("Marked seen: %s", case["post_id"])
         return 0
     except Exception:
+        log.exception("Fatal error in main()")
         return 2
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

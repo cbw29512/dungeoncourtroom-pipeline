@@ -21,10 +21,12 @@ jobs:
 
       - name: Save payload to inbox/latest_case.json
         shell: bash
+        env:
+          PIPELINE_LATEST_URL: https://raw.githubusercontent.com/cbw29512/dungeoncourtroom-pipeline/main/out/latest_case.json
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os
+          import json, os, urllib.request
           from pathlib import Path
 
           event_path = os.environ.get("GITHUB_EVENT_PATH")
@@ -32,22 +34,25 @@ jobs:
               raise SystemExit("Missing GITHUB_EVENT_PATH")
 
           evt = json.loads(Path(event_path).read_text(encoding="utf-8"))
+          payload = evt.get("client_payload")
 
-          # For repository_dispatch, payload is in client_payload.
-          payload = evt.get("client_payload") or {}
+          # If manually run (workflow_dispatch), there is no client_payload.
+          # Fallback: fetch latest from the pipeline repo.
+          if not payload:
+              url = os.environ.get("PIPELINE_LATEST_URL", "").strip()
+              if not url:
+                  raise SystemExit("No client_payload and no PIPELINE_LATEST_URL set")
+              with urllib.request.urlopen(url, timeout=30) as resp:
+                  payload = json.loads(resp.read().decode("utf-8"))
 
           post_id = (payload.get("post_id") or "").strip()
           if not post_id:
-              raise SystemExit("No post_id in client_payload (malformed dispatch payload)")
+              raise SystemExit("No post_id in payload")
 
           out_dir = Path("inbox")
           out_dir.mkdir(parents=True, exist_ok=True)
-
           out_path = out_dir / "latest_case.json"
-          out_path.write_text(
-              json.dumps(payload, ensure_ascii=False, indent=2),
-              encoding="utf-8",
-          )
+          out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
           print(f"Wrote {out_path}")
           print(f"post_id={post_id}")
@@ -59,7 +64,6 @@ jobs:
         run: |
           set -euo pipefail
           echo "TODO: replace this with your real pipeline command"
-          echo "Payload saved at inbox/latest_case.json"
           ls -la inbox
 
       - name: Upload payload artifact

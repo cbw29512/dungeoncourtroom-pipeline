@@ -1,4 +1,5 @@
-﻿import json
+import html
+import json
 import logging
 import os
 import re
@@ -50,11 +51,15 @@ def fetch_rss() -> str:
     except Exception:
         log.exception("RSS fetch failed")
         raise
-
-def strip_tags(s: str) -> str:
+def strip_tags_and_decode(s: str) -> str:
+    # Remove HTML tags
     s = re.sub(r"<[^>]+>", " ", s or "")
+    # Decode HTML entities like &#32; and &amp;
+    s = html.unescape(s)
+    # Collapse whitespace
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
 
 def parse_entries(xml_text: str) -> List[dict]:
     try:

@@ -106,12 +106,24 @@ def strip_tags_and_decode_keep_newlines(s: str) -> str:
 def normalize_reddit_rss_text(text: str) -> str:
     """
     Strip boilerplate like:
-      '... submitted by /u/name [link] [comments]'
+      'submitted by /u/name'
+      '[link]' / '[comments]'
+    Works even when those appear on separate lines.
     """
     t = (text or "").strip()
-    t = re.sub(r"\s*submitted by\s*/u/\S+.*$", "", t, flags=re.IGNORECASE).strip()
-    t = re.sub(r"\s*\[(link|comments)\]\s*$", "", t, flags=re.IGNORECASE).strip()
-    return t
+    if not t:
+        return ""
+
+    # Remove "submitted by /u/..." anywhere (line-based or inline)
+    t = re.sub(r"(?im)^\s*submitted by\s*/u/\S+.*$", "", t).strip()
+    t = re.sub(r"(?i)\s*submitted by\s*/u/\S+.*$", "", t).strip()
+
+    # Remove bare [link] / [comments] lines
+    t = re.sub(r"(?im)^\s*\[(link|comments)\]\s*$", "", t).strip()
+
+    # Collapse excessive blank lines after removals
+    lines = [ln.strip() for ln in t.splitlines() if ln.strip()]
+    return "\n".join(lines).strip()
 
 
 def build_case_text(title: str, content_text: str) -> str:

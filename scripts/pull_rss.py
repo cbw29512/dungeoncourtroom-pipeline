@@ -9,6 +9,24 @@ from typing import Dict, List, Optional
 
 import requests
 
+# =========================
+# Data schema + state logic
+# =========================
+# state/seen.json
+#   { "<post_id>": true, ... }
+#
+# out/latest_case.json
+#   {
+#     "ingested_utc": "...",
+#     "post_id": "...",
+#     "title": "...",
+#     "author": "...",
+#     "published": "...",
+#     "url": "...",
+#     "content_text": "...",   # cleaned RSS content
+#     "case_text": "..."       # best effort: body text or title
+#   }
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("pull_rss")
 
@@ -93,37 +111,48 @@ def strip_tags_and_decode_keep_newlines(s: str) -> str:
 
     # Normalize: keep newlines, collapse spaces per line
     cur = cur.replace("\r", "")
-    lines = []
+    lines: List[str] = []
     for line in cur.split("\n"):
         line = re.sub(r"[ \t]+", " ", line).strip()
         if line:
             lines.append(line)
 
-    # Collapse multiple blank lines (already removed), join with newline
     return "\n".join(lines).strip()
 
 
 def normalize_reddit_rss_text(text: str) -> str:
     """
-    Strip boilerplate like:
-      'submitted by /u/name'
-      '[link]' / '[comments]'
-    Works even when those appear on separate lines.
+    Strip Reddit RSS boilerplate reliably, even when it appears on separate lines:
+      - 'submitted by /u/name'
+      - '[link]' / '[comments]'
+      - 'link' / 'comments' (sometimes without brackets)
     """
     t = (text or "").strip()
     if not t:
         return ""
 
-    # Remove "submitted by /u/..." anywhere (line-based or inline)
-    t = re.sub(r"(?im)^\s*submitted by\s*/u/\S+.*$", "", t).strip()
-    t = re.sub(r"(?i)\s*submitted by\s*/u/\S+.*$", "", t).strip()
+    # First, remove any inline "submitted by /u/..." tail (single-line case)
+    t = re.sub(r"(?i)\s*submitted by\s*/?u/\S+.*$", "", t).strip()
 
-    # Remove bare [link] / [comments] lines
-    t = re.sub(r"(?im)^\s*\[(link|comments)\]\s*$", "", t).strip()
+    cleaned_lines: List[str] = []
+    for raw in t.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
 
-    # Collapse excessive blank lines after removals
-    lines = [ln.strip() for ln in t.splitlines() if ln.strip()]
-    return "\n".join(lines).strip()
+        # Remove "submitted by ..." lines (multiline case)
+        if re.match(r"(?i)^submitted by\s*/?u/\S+", line):
+            continue
+
+        # Remove link/comments tokens (with or without brackets)
+        if re.match(r"(?i)^\[(link|comments?)\]$", line):
+            continue
+        if re.match(r"(?i)^(link|comments?)$", line):
+            continue
+
+        cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines).strip()
 
 
 def build_case_text(title: str, content_text: str) -> str:
@@ -147,7 +176,6 @@ def build_case_text(title: str, content_text: str) -> str:
 
 def _parse_published_iso(s: str) -> datetime:
     try:
-        # RSS uses ISO like 2026-02-27T03:57:52+00:00
         return datetime.fromisoformat((s or "").strip())
     except Exception:
         return datetime.min.replace(tzinfo=timezone.utc)

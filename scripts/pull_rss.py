@@ -114,6 +114,34 @@ def write_latest(case: dict) -> None:
         log.exception("Failed to write %s", OUT_PATH)
         raise
 
+def normalize_reddit_rss_text(text: str) -> str:
+    """
+    Reddit RSS content often looks like:
+      '... submitted by /u/name [link] [comments]'
+    We strip that boilerplate if present.
+    """
+    t = text or ""
+    # Remove the common "submitted by" suffix chunk
+    t = re.sub(r"\s*submitted by\s*/u/\S+.*$", "", t, flags=re.IGNORECASE).strip()
+    # Remove trailing bracket tokens if they survive
+    t = re.sub(r"\s*\[(link|comments)\]\s*$", "", t, flags=re.IGNORECASE).strip()
+    return t
+
+def build_case_text(title: str, content_text: str) -> str:
+    """
+    Prefer cleaned content; fallback to title minus prefix.
+    """
+    ct = normalize_reddit_rss_text(content_text).strip()
+    if len(ct) >= 20:
+        return ct
+
+    # Fallback: use title after "Case Submission:" if present
+    t = (title or "").strip()
+    if t.lower().startswith(CASE_TITLE_PREFIX.lower()):
+        return t[len(CASE_TITLE_PREFIX):].strip()
+
+    return ct
+
 def main() -> int:
     try:
         seen = load_seen()

@@ -9,30 +9,12 @@ from typing import Dict, List, Optional
 
 import requests
 
-# =========================
-# Data schema + state logic
-# =========================
-# state/seen.json
-#   { "<post_id>": true, ... }
-#
-# out/latest_case.json
-#   {
-#     "ingested_utc": "...",
-#     "post_id": "...",
-#     "title": "...",
-#     "author": "...",
-#     "published": "...",
-#     "url": "...",
-#     "content_text": "...",   # decoded + tag-stripped text from RSS content
-#     "case_text": "..."       # best-effort text to feed into the courtroom
-#   }
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("pull_rss")
 
 RSS_URL = "https://www.reddit.com/r/DungeonCourtroom/new/.rss"
 USER_AGENT = "DungeonCourtroomPipeline/0.1 (+https://www.youtube.com/@DungeonCourtroom)"
-CASE_TITLE_PREFIX = "Case Submission:"  # RSS has no flair; we rely on this marker
+CASE_TITLE_PREFIX = "Case Submission:"  # RSS has no flair; rely on this marker
 
 ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 STATE_PATH = "state/seen.json"
@@ -77,37 +59,37 @@ def fetch_rss() -> str:
 
 def strip_tags_and_decode(s: str) -> str:
     """
-    RSS content is HTML. We:
-      1) remove tags
-      2) decode entities like &#32; and &amp;
-      3) normalize whitespace
+    1) Remove HTML tags
+    2) Decode HTML entities (Reddit RSS can double-escape, so decode until stable)
+    3) Normalize whitespace
     """
     s = re.sub(r"<[^>]+>", " ", s or "")
-    s = html.unescape(s)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+
+    cur = s
+    for _ in range(3):  # cap loops: prevents weird edge cases
+        nxt = html.unescape(cur)
+        if nxt == cur:
+            break
+        cur = nxt
+
+    cur = re.sub(r"\s+", " ", cur).strip()
+    return cur
 
 
 def normalize_reddit_rss_text(text: str) -> str:
     """
-    Reddit RSS content often looks like:
-      '<p>text</p> submitted by /u/name [link] [comments]'
-    Strip the boilerplate.
+    Strip boilerplate like:
+      '... submitted by /u/name [link] [comments]'
     """
     t = (text or "").strip()
-
-    # Remove the common "submitted by /u/..." tail (and anything after it)
     t = re.sub(r"\s*submitted by\s*/u/\S+.*$", "", t, flags=re.IGNORECASE).strip()
-
-    # Remove trailing bracket tokens if they survive
     t = re.sub(r"\s*\[(link|comments)\]\s*$", "", t, flags=re.IGNORECASE).strip()
-
     return t
 
 
 def build_case_text(title: str, content_text: str) -> str:
     """
-    Prefer cleaned content; fallback to title minus the 'Case Submission:' prefix.
+    Prefer cleaned content; fallback to the title minus prefix.
     """
     ct = normalize_reddit_rss_text(content_text).strip()
     if len(ct) >= 20:
@@ -131,11 +113,21 @@ def parse_entries(xml_text: str) -> List[dict]:
             author = (entry.findtext("a:author/a:name", default="", namespaces=ATOM_NS) or "").strip()
             published = (entry.findtext("a:published", default="", namespaces=ATOM_NS) or "").strip()
 
-            link_el = entry.find("a:link", ATOM_NS)
-            url = (link_el.get("href") if link_el is not None else "") or ""
+            # Prefer rel="alternate" for the post permalink
+            url = ""
+            for link_el in entry.findall("a:link", ATOM_NS):
+                rel = (link_el.get("rel") or "").lower()
+                href = (link_el.get("href") or "").strip()
+                if rel == "alternate" and href:
+                    url = href
+                    break
+            if not url:
+                link_el = entry.find("a:link", ATOM_NS)
+                url = (link_el.get("href") if link_el is not None else "") or ""
 
             content_html = (entry.findtext("a:content", default="", namespaces=ATOM_NS) or "")
             content_text = strip_tags_and_decode(content_html)
+            content_text = normalize_reddit_rss_text(content_text)
             case_text = build_case_text(title, content_text)
 
             out.append(
@@ -164,7 +156,6 @@ def pick_next_case(entries: List[dict], seen: Dict[str, bool]) -> Optional[dict]
         post_id = (e.get("post_id") or "").strip()
         if not post_id:
             continue
-
         if seen.get(post_id, False):
             continue
 
@@ -192,18 +183,9 @@ def main() -> int:
         entries = parse_entries(xml_text)
         case = pick_next_case(entries, seen)
 
+        # IMPORTANT: do NOT overwrite latest_case.json when nothing new exists
         if not case:
-            write_latest(
-                {
-                    "post_id": "",
-                    "title": "NO NEW CASE FOUND",
-                    "author": "",
-                    "published": "",
-                    "url": "",
-                    "content_text": "",
-                    "case_text": "",
-                }
-            )
+            log.info("No new case found; leaving %s unchanged.", OUT_PATH)
             return 0
 
         write_latest(case)
@@ -211,6 +193,7 @@ def main() -> int:
         save_seen(seen)
         log.info("Marked seen: %s", case["post_id"])
         return 0
+
     except Exception:
         log.exception("Fatal error in main()")
         return 2

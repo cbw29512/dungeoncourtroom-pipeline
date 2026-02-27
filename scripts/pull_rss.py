@@ -9,34 +9,14 @@ from typing import Dict, List, Optional
 
 import requests
 
-# =========================
-# Data schema + state logic
-# =========================
-# state/seen.json
-#   { "<post_id>": true, ... }
-#
-# out/latest_case.json
-#   {
-#     "ingested_utc": "...",
-#     "post_id": "...",
-#     "title": "...",
-#     "author": "...",
-#     "published": "...",
-#     "url": "...",
-#     "content_text": "...",   # cleaned RSS content
-#     "case_text": "..."       # best effort: body text or title
-#   }
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("pull_rss")
 
 RSS_URL = "https://www.reddit.com/r/DungeonCourtroom/new/.rss"
 USER_AGENT = "DungeonCourtroomPipeline/0.1 (+https://www.youtube.com/@DungeonCourtroom)"
 
-# If present in title, we treat this as an explicit "case submission" (preferred)
 CASE_TITLE_PREFIX = "Case Submission:"
 
-# Titles we never want to treat as cases (your pinned/info posts)
 EXCLUDE_TITLE_SUBSTRINGS = [
     "Welcome to Dungeon Courtroom",
     "Start Here:",
@@ -47,6 +27,9 @@ EXCLUDE_TITLE_SUBSTRINGS = [
 ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 STATE_PATH = "state/seen.json"
 OUT_PATH = "out/latest_case.json"
+
+# Treat these tags as line breaks before stripping all tags
+_BREAK_TAG_RE = re.compile(r"(?is)<\s*(br\s*/?|/p\s*|/div\s*|/li\s*)>")
 
 
 def utc_now_iso() -> str:
@@ -67,7 +50,9 @@ def load_seen() -> Dict[str, bool]:
 
 def save_seen(seen: Dict[str, bool]) -> None:
     try:
-        os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+        d = os.path.dirname(STATE_PATH)
+        if d:
+            os.makedirs(d, exist_ok=True)
         with open(STATE_PATH, "w", encoding="utf-8") as f:
             json.dump(seen, f, indent=2, sort_keys=True)
     except Exception:
@@ -85,22 +70,37 @@ def fetch_rss() -> str:
         raise
 
 
-def strip_tags_and_decode(s: str) -> str:
+def strip_tags_and_decode_keep_newlines(s: str) -> str:
     """
-    1) Remove HTML tags
-    2) Decode HTML entities (Reddit RSS can double-escape)
-    3) Normalize whitespace
+    Convert some HTML structure into newlines, strip tags, decode entities,
+    and normalize whitespace while keeping paragraph breaks.
     """
-    s = re.sub(r"<[^>]+>", " ", s or "")
+    s = s or ""
 
+    # Insert newlines for common break-ish tags BEFORE removing tags
+    s = _BREAK_TAG_RE.sub("\n", s)
+
+    # Strip remaining tags
+    s = re.sub(r"(?is)<[^>]+>", " ", s)
+
+    # Decode entities; reddit can double-escape
     cur = s
-    for _ in range(3):  # cap loops to avoid weird edge cases
+    for _ in range(3):
         nxt = html.unescape(cur)
         if nxt == cur:
             break
         cur = nxt
 
-    return re.sub(r"\s+", " ", cur).strip()
+    # Normalize: keep newlines, collapse spaces per line
+    cur = cur.replace("\r", "")
+    lines = []
+    for line in cur.split("\n"):
+        line = re.sub(r"[ \t]+", " ", line).strip()
+        if line:
+            lines.append(line)
+
+    # Collapse multiple blank lines (already removed), join with newline
+    return "\n".join(lines).strip()
 
 
 def normalize_reddit_rss_text(text: str) -> str:
@@ -116,14 +116,14 @@ def normalize_reddit_rss_text(text: str) -> str:
 
 def build_case_text(title: str, content_text: str) -> str:
     """
-    Prefer cleaned body content if it looks substantive; otherwise fall back.
+    Prefer body content if it looks substantive; otherwise fall back.
 
-    - If content has enough text => use it
-    - Else if title starts with "Case Submission:" => use the title suffix
-    - Else => use the full title (so normal questions work)
+    - If content has enough non-whitespace => use it
+    - Else if title starts with "Case Submission:" => use title suffix
+    - Else => use full title (so normal questions work)
     """
-    ct = normalize_reddit_rss_text(content_text).strip()
-    if len(ct) >= 20:
+    ct = normalize_reddit_rss_text(content_text)
+    if len(re.sub(r"\s+", "", ct)) >= 20:
         return ct
 
     t = (title or "").strip()
@@ -131,6 +131,14 @@ def build_case_text(title: str, content_text: str) -> str:
         return t[len(CASE_TITLE_PREFIX) :].strip()
 
     return t
+
+
+def _parse_published_iso(s: str) -> datetime:
+    try:
+        # RSS uses ISO like 2026-02-27T03:57:52+00:00
+        return datetime.fromisoformat((s or "").strip())
+    except Exception:
+        return datetime.min.replace(tzinfo=timezone.utc)
 
 
 def parse_entries(xml_text: str) -> List[dict]:
@@ -144,7 +152,7 @@ def parse_entries(xml_text: str) -> List[dict]:
             author = (entry.findtext("a:author/a:name", default="", namespaces=ATOM_NS) or "").strip()
             published = (entry.findtext("a:published", default="", namespaces=ATOM_NS) or "").strip()
 
-            # Prefer rel="alternate" for the post permalink
+            # Prefer rel="alternate" for permalink
             url = ""
             for link_el in entry.findall("a:link", ATOM_NS):
                 rel = (link_el.get("rel") or "").lower()
@@ -157,8 +165,8 @@ def parse_entries(xml_text: str) -> List[dict]:
                 url = (link_el.get("href") if link_el is not None else "") or ""
 
             content_html = (entry.findtext("a:content", default="", namespaces=ATOM_NS) or "")
-            content_text = normalize_reddit_rss_text(strip_tags_and_decode(content_html))
-            case_text = build_case_text(title, content_text)
+            content_text = strip_tags_and_decode_keep_newlines(content_html)
+            content_text = normalize_reddit_rss_text(content_text)
 
             out.append(
                 {
@@ -168,11 +176,14 @@ def parse_entries(xml_text: str) -> List[dict]:
                     "published": published,
                     "url": url,
                     "content_text": content_text,
-                    "case_text": case_text,
+                    "case_text": build_case_text(title, content_text),
                 }
             )
 
+        # Deterministic: newest-first
+        out.sort(key=lambda e: _parse_published_iso(e.get("published", "")), reverse=True)
         return out
+
     except Exception:
         log.exception("RSS parse failed")
         raise
@@ -186,9 +197,8 @@ def _is_excluded_title(title: str) -> bool:
 def pick_next_case(entries: List[dict], seen: Dict[str, bool]) -> Optional[dict]:
     """
     Two-pass selection:
-      Pass 1: Prefer explicit "Case Submission:" posts (even if not newest)
-      Pass 2: Otherwise accept any new post (so normal questions work),
-              except excluded info/pinned-style posts.
+      Pass 1: Prefer explicit Case Submission posts.
+      Pass 2: Otherwise accept any new post (except excluded pinned/info).
     """
     def is_seen(post_id: str) -> bool:
         return bool(seen.get(post_id, False))
@@ -215,7 +225,9 @@ def pick_next_case(entries: List[dict], seen: Dict[str, bool]) -> Optional[dict]
 
 def write_latest(case: dict) -> None:
     try:
-        os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
+        d = os.path.dirname(OUT_PATH)
+        if d:
+            os.makedirs(d, exist_ok=True)
         payload = {"ingested_utc": utc_now_iso(), **case}
         with open(OUT_PATH, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)

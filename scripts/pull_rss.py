@@ -9,12 +9,40 @@ from typing import Dict, List, Optional
 
 import requests
 
+# =========================
+# Data schema + state logic
+# =========================
+# state/seen.json
+#   { "<post_id>": true, ... }
+#
+# out/latest_case.json
+#   {
+#     "ingested_utc": "...",
+#     "post_id": "...",
+#     "title": "...",
+#     "author": "...",
+#     "published": "...",
+#     "url": "...",
+#     "content_text": "...",   # cleaned RSS content
+#     "case_text": "..."       # best effort: body text or title
+#   }
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("pull_rss")
 
 RSS_URL = "https://www.reddit.com/r/DungeonCourtroom/new/.rss"
 USER_AGENT = "DungeonCourtroomPipeline/0.1 (+https://www.youtube.com/@DungeonCourtroom)"
-CASE_TITLE_PREFIX = "Case Submission:"  # RSS has no flair; rely on this marker
+
+# If present in title, we treat this as an explicit "case submission" (preferred)
+CASE_TITLE_PREFIX = "Case Submission:"
+
+# Titles we never want to treat as cases (your pinned/info posts)
+EXCLUDE_TITLE_SUBSTRINGS = [
+    "Welcome to Dungeon Courtroom",
+    "Start Here:",
+    "Submit Your D&D Case",
+    "Template Inside",
+]
 
 ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 STATE_PATH = "state/seen.json"
@@ -60,20 +88,19 @@ def fetch_rss() -> str:
 def strip_tags_and_decode(s: str) -> str:
     """
     1) Remove HTML tags
-    2) Decode HTML entities (Reddit RSS can double-escape, so decode until stable)
+    2) Decode HTML entities (Reddit RSS can double-escape)
     3) Normalize whitespace
     """
     s = re.sub(r"<[^>]+>", " ", s or "")
 
     cur = s
-    for _ in range(3):  # cap loops: prevents weird edge cases
+    for _ in range(3):  # cap loops to avoid weird edge cases
         nxt = html.unescape(cur)
         if nxt == cur:
             break
         cur = nxt
 
-    cur = re.sub(r"\s+", " ", cur).strip()
-    return cur
+    return re.sub(r"\s+", " ", cur).strip()
 
 
 def normalize_reddit_rss_text(text: str) -> str:
@@ -89,7 +116,11 @@ def normalize_reddit_rss_text(text: str) -> str:
 
 def build_case_text(title: str, content_text: str) -> str:
     """
-    Prefer cleaned content; fallback to the title minus prefix.
+    Prefer cleaned body content if it looks substantive; otherwise fall back.
+
+    - If content has enough text => use it
+    - Else if title starts with "Case Submission:" => use the title suffix
+    - Else => use the full title (so normal questions work)
     """
     ct = normalize_reddit_rss_text(content_text).strip()
     if len(ct) >= 20:
@@ -99,7 +130,7 @@ def build_case_text(title: str, content_text: str) -> str:
     if t.lower().startswith(CASE_TITLE_PREFIX.lower()):
         return t[len(CASE_TITLE_PREFIX) :].strip()
 
-    return ct
+    return t
 
 
 def parse_entries(xml_text: str) -> List[dict]:
@@ -126,8 +157,7 @@ def parse_entries(xml_text: str) -> List[dict]:
                 url = (link_el.get("href") if link_el is not None else "") or ""
 
             content_html = (entry.findtext("a:content", default="", namespaces=ATOM_NS) or "")
-            content_text = strip_tags_and_decode(content_html)
-            content_text = normalize_reddit_rss_text(content_text)
+            content_text = normalize_reddit_rss_text(strip_tags_and_decode(content_html))
             case_text = build_case_text(title, content_text)
 
             out.append(
@@ -148,17 +178,36 @@ def parse_entries(xml_text: str) -> List[dict]:
         raise
 
 
+def _is_excluded_title(title: str) -> bool:
+    t = (title or "").strip().lower()
+    return any(s.lower() in t for s in EXCLUDE_TITLE_SUBSTRINGS)
+
+
 def pick_next_case(entries: List[dict], seen: Dict[str, bool]) -> Optional[dict]:
+    """
+    Two-pass selection:
+      Pass 1: Prefer explicit "Case Submission:" posts (even if not newest)
+      Pass 2: Otherwise accept any new post (so normal questions work),
+              except excluded info/pinned-style posts.
+    """
+    def is_seen(post_id: str) -> bool:
+        return bool(seen.get(post_id, False))
+
+    # Pass 1 (preferred)
     for e in entries:
-        if CASE_TITLE_PREFIX.lower() not in (e.get("title") or "").lower():
-            continue
-
+        title = (e.get("title") or "").strip()
         post_id = (e.get("post_id") or "").strip()
-        if not post_id:
+        if not post_id or is_seen(post_id) or _is_excluded_title(title):
             continue
-        if seen.get(post_id, False):
-            continue
+        if CASE_TITLE_PREFIX.lower() in title.lower():
+            return e
 
+    # Pass 2 (fallback)
+    for e in entries:
+        title = (e.get("title") or "").strip()
+        post_id = (e.get("post_id") or "").strip()
+        if not post_id or is_seen(post_id) or _is_excluded_title(title):
+            continue
         return e
 
     return None
@@ -183,7 +232,7 @@ def main() -> int:
         entries = parse_entries(xml_text)
         case = pick_next_case(entries, seen)
 
-        # IMPORTANT: do NOT overwrite latest_case.json when nothing new exists
+        # Do NOT overwrite latest_case.json if nothing new exists
         if not case:
             log.info("No new case found; leaving %s unchanged.", OUT_PATH)
             return 0

@@ -89,7 +89,7 @@ def parse_entries(xml_text: str) -> List[dict]:
 
 def pick_next_case(entries: List[dict], seen: Dict[str, bool]) -> Optional[dict]:
     for e in entries:
-        if not e["title"].startswith(CASE_TITLE_PREFIX):
+        if CASE_TITLE_PREFIX.lower() not in (e["title"] or "").lower():
             continue
         if not e["post_id"]:
             continue

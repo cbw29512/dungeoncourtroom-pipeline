@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint + Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements*.txt
+            pyproject.toml
+            poetry.lock
+
+      - name: Install optional system deps (ffmpeg if needed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEED_FFMPEG=0
+          for f in requirements.txt requirements-dev.txt pyproject.toml; do
+            if [ -f "$f" ] && grep -qiE 'moviepy|ffmpeg|pydub|opencv' "$f"; then
+              NEED_FFMPEG=1
+            fi
+          done
+          if [ "$NEED_FFMPEG" -eq 1 ]; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+
+      - name: Install Python deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+
+          # Project deps (supports both requirements.txt and pyproject-based repos)
+          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then python -m pip install -r requirements-dev.txt; fi
+
+          # Always ensure CI tools exist
+          python -m pip install ruff pytest
+
+          # If this is a package (pyproject present), attempt install (safe fallback)
+          if [ -f pyproject.toml ] && [ ! -f requirements.txt ]; then
+            python -m pip install -e . || python -m pip install .
+          fi
+
+      - name: Compile check (fast syntax sanity)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q .
+
+      - name: Lint (ruff)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check .
+
+      - name: Unit tests (pytest)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d tests ] || [ -f pytest.ini ] || [ -f pyproject.toml ]; then
+            pytest -q
+          else
+            echo "No tests detected; skipping pytest."
+          fi
+
+  docker:
+    name: Publish Docker image to GHCR (tags v*)
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if no Dockerfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f Dockerfile ]; then
+            echo "No Dockerfile found. Skipping image publish."
+            exit 0
+          fi
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:latest

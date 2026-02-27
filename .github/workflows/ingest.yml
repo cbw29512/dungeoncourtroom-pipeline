@@ -1,4 +1,4 @@
-﻿name: DungeonCourtroom RSS ingest (6h)
+name: DungeonCourtroom RSS ingest (6h)
 
 on:
   workflow_dispatch: {}
@@ -8,12 +8,18 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ingest-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -21,22 +27,37 @@ jobs:
           python-version: "3.11"
 
       - name: Install deps
+        shell: bash
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install -r requirements.txt
 
       - name: Pull RSS
+        shell: bash
         run: |
+          set -euo pipefail
           python scripts/pull_rss.py
 
       - name: Commit state
+        shell: bash
         run: |
-          if [[ -n "?? out/ ?? requirements.txt ?? scripts/ ?? state/" ]]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add state/seen.json out/latest_case.json
-            git commit -m "Ingest RSS update"
-            git push
-          else
-            echo "No changes."
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage only the files we expect to change
+          git add state/seen.json out/latest_case.json
+
+          # If nothing staged, exit cleanly (do NOT fail the workflow)
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
           fi
+
+          git commit -m "Ingest RSS update"
+
+          # Avoid push races if another run committed while we were running
+          git pull --rebase origin main
+          git push

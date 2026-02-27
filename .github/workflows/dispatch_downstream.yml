@@ -1,0 +1,59 @@
+name: Dispatch new case downstream
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "out/latest_case.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dispatch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    # Only dispatch when ingest bot produced the commit
+    if: github.actor == 'github-actions[bot]' || contains(github.event.head_commit.message, 'Ingest RSS update')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build dispatch payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          src = Path("out/latest_case.json")
+          if not src.exists():
+            raise SystemExit("Missing out/latest_case.json")
+
+          data = json.loads(src.read_text(encoding="utf-8"))
+
+          # Basic validation (fail fast)
+          post_id = (data.get("post_id") or "").strip()
+          if not post_id:
+            raise SystemExit("post_id empty; refusing to dispatch")
+
+          payload = {k: data.get(k, "") for k in [
+            "post_id","title","case_text","content_text","url","author","published","ingested_utc"
+          ]}
+
+          Path("dispatch_payload.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+          print("Dispatch payload written: dispatch_payload.json")
+          PY
+
+      - name: Dispatch to downstream repo
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DOWNSTREAM_DISPATCH_TOKEN }}
+          repository: ${{ vars.DOWNSTREAM_REPO }}
+          event-type: dungeoncourtroom_new_case
+          client-payload-file: dispatch_payload.json

@@ -1,0 +1,52 @@
+name: On new DungeonCourtroom case
+
+on:
+  repository_dispatch:
+    types: [dungeoncourtroom_new_case]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: newcase-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  receive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Save payload to inbox/latest_case.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          event_path = os.environ.get("GITHUB_EVENT_PATH")
+          if not event_path:
+            raise SystemExit("Missing GITHUB_EVENT_PATH")
+
+          evt = json.loads(Path(event_path).read_text(encoding="utf-8"))
+          payload = evt.get("client_payload") or {}
+
+          # Fail fast if payload is malformed
+          post_id = (payload.get("post_id") or "").strip()
+          if not post_id:
+            raise SystemExit("No post_id in client_payload")
+
+          out = Path("inbox")
+          out.mkdir(parents=True, exist_ok=True)
+          (out / "latest_case.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+          print("Wrote inbox/latest_case.json")
+          PY
+
+      - name: Run your generator (wire your real command here)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "TODO: replace this with your real pipeline command"
+          ls -la inbox

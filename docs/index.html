@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dungeon Courtroom</title>
+  <meta name="description" content="Where tabletop rules disputes go to court." />
+  <link rel="icon" type="image/png" href="assets/hammer-logo.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="home">
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="index.html" aria-label="Dungeon Courtroom home">
+        <img src="assets/hammer-logo.png" alt="Dungeon Courtroom logo" class="brand-logo" />
+        <div>
+          <div class="brand-title">Dungeon Courtroom</div>
+          <div class="brand-subtitle">All Rise</div>
+        </div>
+      </a>
+
+      <button class="menu-toggle" aria-expanded="false" aria-label="Open menu">☰</button>
+
+      <nav class="nav-links">
+        <a href="#featured-case">Dashboard</a>
+        <a href="season-1.html">Season 1</a>
+        <a href="#submit-case">Submit Case</a>
+        <a href="https://www.youtube.com/channel/UCMVN3DYPMADGKw9e9CZ13Rg" target="_blank" rel="noreferrer">YouTube</a>
+        <a href="https://www.reddit.com/r/DungeonCourtroom/" target="_blank" rel="noreferrer">Reddit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-top-layout">
+      <div class="container hero-grid hero-voting-first">
+        <aside class="panel verdict-panel top-verdict-panel">
+          <p class="section-label">Jury Deliberation</p>
+          <h3>Cast your verdict</h3>
+          <p class="small-copy">
+            This build uses GitHub Pages for static hosting and Supabase for real submissions and real vote totals.
+          </p>
+
+          <div class="setup-warning" data-setup-warning>
+            Supabase is not configured yet. Add your project URL and anon key in <code>supabase-config.js</code>.
+          </div>
+
+          <div class="vote-list" data-featured-votes>
+            <button class="vote-button" data-vote="law" disabled>
+              <span>Rule of Law</span>
+              <strong data-count="law">0</strong>
+            </button>
+            <button class="vote-button" data-vote="cool" disabled>
+              <span>Rule of Cool</span>
+              <strong data-count="cool">0</strong>
+            </button>
+            <button class="vote-button" data-vote="tie" disabled>
+              <span>Tie / Hung Jury</span>
+              <strong data-count="tie">0</strong>
+            </button>
+          </div>
+
+          <div class="vote-status" aria-live="polite" data-featured-status>
+            Loading the court record…
+          </div>
+
+          <div class="cta-stack">
+            <a class="button button-primary block" href="https://www.youtube.com/channel/UCMVN3DYPMADGKw9e9CZ13Rg" target="_blank" rel="noreferrer">Watch on YouTube</a>
+            <a class="button button-secondary block" href="https://www.reddit.com/r/DungeonCourtroom/" target="_blank" rel="noreferrer">Visit the Subreddit</a>
+          </div>
+        </aside>
+
+        <div class="hero-copy hero-copy-panel">
+          <span class="eyebrow">Rule of Cool vs Rule of Law</span>
+          <h1>Where tabletop rules disputes go to court.</h1>
+          <p>
+            The DM Judge hears the case. The Bailiff keeps order. Two rotating, SRD-safe courtroom monsters argue opposite sides of the ruling.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#featured-case">Watch the Pilot</a>
+            <a class="button button-secondary" href="#submit-case">Submit a Case</a>
+            <a class="button button-secondary" href="season-1.html">Browse Season 1</a>
+          </div>
+          <div class="hero-note">
+            GitHub Pages + Supabase MVP. Submissions and votes persist across visitors once Supabase is connected.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="featured-case" class="section">
+      <div class="container section-head">
+        <div>
+          <p class="section-label">Featured Case</p>
+          <h2>The Pilot Hearing</h2>
+        </div>
+        <a class="text-link" href="season-1.html">Open Season 1 Docket →</a>
+      </div>
+
+      <div class="container featured-stack">
+        <article class="panel featured-panel">
+          <div class="video-shell">
+            <video controls preload="metadata" poster="assets/pilot-poster.jpg" class="featured-video">
+              <source src="assets/pilot.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          </div>
+
+          <div class="featured-meta-grid">
+            <div class="meta-card">
+              <div class="meta-label">Season</div>
+              <div class="meta-value" data-featured-season>Season 1 · Pilot</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Courtroom Matchup</div>
+              <div class="meta-value" data-featured-matchup>Loading matchup…</div>
+            </div>
+            <div class="meta-card meta-card-wide">
+              <div class="meta-label">Case Summary</div>
+              <p data-featured-summary>
+                Loading the featured docket from the court record…
+              </p>
+            </div>
+          </div>
+        </article>
+
+        <aside class="panel officers-panel">
+          <p class="section-label">Court Officers</p>
+          <div class="officer-grid">
+            <div class="meta-card">
+              <div class="meta-label">Judge</div>
+              <div class="meta-value">The DM Judge</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Bailiff</div>
+              <div class="meta-value">The Bailiff</div>
+            </div>
+            <div class="meta-card meta-card-wide">
+              <div class="meta-label">Theme</div>
+              <p>Polished fantasy courtroom with gold accents, rich wood tones, and parchment-style content panels.</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section alt-section">
+      <div class="container section-head compact-gap">
+        <div>
+          <p class="section-label">Quick Docket</p>
+          <h2>Season 1 at a glance</h2>
+        </div>
+      </div>
+
+      <div class="container card-grid" data-home-episodes>
+        <article class="episode-card panel skeleton-card">
+          <span class="episode-badge">Loading</span>
+          <h3>Pulling the docket…</h3>
+          <p>The court clerk is reading from the archive.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="submit-case" class="section">
+      <div class="container submission-grid">
+        <aside class="panel submission-copy">
+          <p class="section-label">File a Motion</p>
+          <h2>Send the next case to the court.</h2>
+          <p>
+            Share the rules dispute, table chaos, or edge-case combo that deserves a hearing. You can include a Reddit thread if the argument already exists.
+          </p>
+          <ul class="bullet-list">
+            <li>Keep it readable and specific.</li>
+            <li>Explain the exact point of disagreement.</li>
+            <li>Use SRD-safe monster ideas only in site copy.</li>
+          </ul>
+        </aside>
+
+        <div class="panel submission-form-panel">
+          <form class="submission-form" data-submit-case-form>
+            <label>
+              <span>Case title</span>
+              <input type="text" name="case_title" placeholder="Can a readied action interrupt dragon breath?" required />
+            </label>
+
+            <label>
+              <span>Case details</span>
+              <textarea name="case_details" rows="6" placeholder="Write the full ruling dispute here." required></textarea>
+            </label>
+
+            <label>
+              <span>Reddit link (optional)</span>
+              <input type="url" name="reddit_link" placeholder="https://reddit.com/..." />
+            </label>
+
+            <label>
+              <span>Your name or handle (optional)</span>
+              <input type="text" name="submitter_name" placeholder="Court Clerk Chris" />
+            </label>
+
+            <button type="submit" class="button button-primary submit-button">Submit to the Court</button>
+            <p class="form-note" data-submit-status>
+              Once Supabase is configured, this will insert a real submission into the court inbox.
+            </p>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="bottom-status-toolbar">
+    <div class="container bottom-status-grid">
+      <div>⚖️ Court is in session</div>
+      <div>🎥 Pilot video loaded</div>
+      <div>📜 Submit your table disputes</div>
+      <div>🛡️ Use SRD-safe monsters only</div>
+    </div>
+  </div>
+
+  <script src="supabase-config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dungeon Courtroom | Season 1</title>
+  <meta name="description" content="Season 1 docket for Dungeon Courtroom." />
+  <link rel="icon" type="image/png" href="assets/hammer-logo.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="season-1">
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="index.html" aria-label="Dungeon Courtroom home">
+        <img src="assets/hammer-logo.png" alt="Dungeon Courtroom logo" class="brand-logo" />
+        <div>
+          <div class="brand-title">Dungeon Courtroom</div>
+          <div class="brand-subtitle">Season 1 Docket</div>
+        </div>
+      </a>
+
+      <button class="menu-toggle" aria-expanded="false" aria-label="Open menu">☰</button>
+
+      <nav class="nav-links">
+        <a href="index.html">Dashboard</a>
+        <a href="season-1.html">Season 1</a>
+        <a href="index.html#submit-case">Submit Case</a>
+        <a href="https://www.youtube.com/channel/UCMVN3DYPMADGKw9e9CZ13Rg" target="_blank" rel="noreferrer">YouTube</a>
+        <a href="https://www.reddit.com/r/DungeonCourtroom/" target="_blank" rel="noreferrer">Reddit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero short-hero">
+      <div class="container hero-grid single-column">
+        <div class="hero-copy hero-copy-panel panel max-wide">
+          <span class="eyebrow">Archive</span>
+          <h1>Season 1 Docket</h1>
+          <p>
+            Every published case for the first season lives here. Vote totals and links are pulled from Supabase.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt-section">
+      <div class="container section-head compact-gap">
+        <div>
+          <p class="section-label">Episode Archive</p>
+          <h2>Published hearings</h2>
+        </div>
+      </div>
+
+      <div class="container archive-grid" data-season-episodes>
+        <article class="episode-card panel skeleton-card">
+          <span class="episode-badge">Loading</span>
+          <h3>Pulling the court archive…</h3>
+          <p>The docket is being assembled from Supabase.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div class="bottom-status-toolbar">
+    <div class="container bottom-status-grid">
+      <div>⚖️ Court is in session</div>
+      <div>🎥 Pilot video loaded</div>
+      <div>📜 Submit your table disputes</div>
+      <div>🛡️ Use SRD-safe monsters only</div>
+    </div>
+  </div>
+
+  <script src="supabase-config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

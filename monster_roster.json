@@ -1,0 +1,200 @@
+{
+  "monsters": {
+    "Kobold": [
+      {
+        "name": "Clawthorn Scrivener",
+        "type": "Kobold",
+        "gender": "male",
+        "personality": "Obsessed with the letter of the law, Clawthorn can turn even the most heroic act into a tedious legal debate.",
+        "portrait_path": "C:\\Users\\divcl\\OneDrive\\Desktop\\dungeonCourtroom\\videogenerator\\episodes\\ep_20260317_172322\\portrait_plaintiff_Kobold.png",
+        "role_history": [
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff"
+        ],
+        "episode_history": [
+          3,
+          12,
+          14,
+          16,
+          17,
+          18
+        ],
+        "appearances": 6,
+        "created_episode": 3
+      }
+    ],
+    "Young Green Dragon": [
+      {
+        "name": "Scales of Chaos",
+        "type": "Young Green Dragon",
+        "gender": "male",
+        "personality": "He believes that the only rule worth following is the one that makes for an epic tale, bending reality and rules alike to keep things exciting.",
+        "portrait_path": "C:\\Users\\divcl\\OneDrive\\Desktop\\dungeonCourtroom\\videogenerator\\episodes\\ep_20260317_185415\\portrait_defendant_Young_Green_Dragon.png",
+        "role_history": [
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant"
+        ],
+        "episode_history": [
+          3,
+          5,
+          6,
+          7,
+          9,
+          16,
+          19,
+          20,
+          22
+        ],
+        "appearances": 9,
+        "created_episode": 3
+      }
+    ],
+    "Cambion": [
+      {
+        "name": "Veximus",
+        "type": "Cambion",
+        "gender": "male",
+        "personality": "Every deviation from the letter of the law is an abomination in Lexicon's eyes, even if it means saving lives.",
+        "portrait_path": "C:\\Users\\divcl\\OneDrive\\Desktop\\dungeonCourtroom\\videogenerator\\episodes\\ep_20260317_185415\\portrait_plaintiff_Cambion.png",
+        "role_history": [
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff",
+          "plaintiff"
+        ],
+        "episode_history": [
+          4,
+          5,
+          7,
+          8,
+          9,
+          10,
+          11,
+          19,
+          20,
+          21,
+          22
+        ],
+        "appearances": 11,
+        "created_episode": 4
+      }
+    ],
+    "Young Blue Dragon": [
+      {
+        "name": "Zephyrax",
+        "type": "Young Blue Dragon",
+        "gender": "male",
+        "personality": "Always advocating for Rule of Cool, Zephyrax believes that breaking a few rules is worth it if it means adding an epic twist to the story.",
+        "portrait_path": "C:\\Users\\divcl\\OneDrive\\Desktop\\dungeonCourtroom\\videogenerator\\episodes\\ep_20260317_175353\\portrait_defendant_Young_Blue_Dragon.png",
+        "role_history": [
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant",
+          "defendant"
+        ],
+        "episode_history": [
+          4,
+          8,
+          10,
+          11,
+          14,
+          15,
+          21
+        ],
+        "appearances": 7,
+        "created_episode": 4
+      }
+    ],
+    "Barbed Devil": [
+      {
+        "name": "Vexis",
+        "type": "Barbed Devil",
+        "gender": "male",
+        "personality": "He spends more time arguing about the interpretation of ancient scrolls than actually enforcing the rules.",
+        "portrait_path": "C:\\Users\\divcl\\OneDrive\\Desktop\\dungeonCourtroom\\videogenerator\\assets\\images\\roster_Barbed_Devil_Vexis.png",
+        "role_history": [
+          "plaintiff"
+        ],
+        "episode_history": [
+          6
+        ],
+        "appearances": 1,
+        "created_episode": 6
+      }
+    ],
+    "Young Red Dragon": [
+      {
+        "name": "Snarglethor",
+        "type": "Young Red Dragon",
+        "gender": "male",
+        "personality": "He believes that bending the rules is not just permissible, but a magical art form.",
+        "portrait_path": "C:\\Users\\divcl\\OneDrive\\Desktop\\dungeonCourtroom\\videogenerator\\episodes\\ep_20260317_161305\\portrait_defendant_Young_Red_Dragon.png",
+        "role_history": [
+          "defendant"
+        ],
+        "episode_history": [
+          12
+        ],
+        "appearances": 1,
+        "created_episode": 12
+      }
+    ],
+    "Kenku": [
+      {
+        "name": "Quixor",
+        "type": "Kenku",
+        "gender": "male",
+        "personality": "Obsessed with the letter of the law, Quixor would rather recite rulebooks than have an actual conversation.",
+        "portrait_path": "C:\\Users\\divcl\\OneDrive\\Desktop\\dungeonCourtroom\\videogenerator\\episodes\\ep_20260317_163901\\portrait_plaintiff_Kenku.png",
+        "role_history": [
+          "plaintiff"
+        ],
+        "episode_history": [
+          15
+        ],
+        "appearances": 1,
+        "created_episode": 15
+      }
+    ],
+    "Mimic": [
+      {
+        "name": "Snorgle",
+        "type": "Mimic",
+        "gender": "female",
+        "personality": "Always bending the rules with a smile and a wink, Snorgle believes that chaos is the true path to harmony.",
+        "portrait_path": "C:\\Users\\divcl\\OneDrive\\Desktop\\dungeonCourtroom\\videogenerator\\episodes\\ep_20260317_172322\\portrait_defendant_Mimic.png",
+        "role_history": [
+          "defendant",
+          "defendant"
+        ],
+        "episode_history": [
+          17,
+          18
+        ],
+        "appearances": 2,
+        "created_episode": 17
+      }
+    ]
+  }
+}

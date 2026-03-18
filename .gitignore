@@ -1,0 +1,60 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Secrets / local config
+.env
+.env.*
+*.token
+client_secrets.json
+token.pickle
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build / logs / temp
+*.log
+tmp/
+temp/
+
+# Generated media and large outputs
+episodes/
+outputs/
+rendered/
+exports/
+dist/
+build/
+
+# Audio / video scratch
+*.wav
+*.mp3
+*.m4a
+*.mov
+*.avi
+
+# Keep website assets, but ignore giant local source videos by default
+*.mkv
+
+# Supabase local junk
+.supabase/
+
+# Local notes
+*.bak
+
+dungeoncourtroom.zip
+
+assets/models/
+
+*.safetensors
+
+*.ckpt
+
+*.bin

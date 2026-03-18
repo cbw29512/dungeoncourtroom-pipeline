@@ -7,7 +7,7 @@
   Fill these values from your Supabase project settings.
 */
 window.DC_SUPABASE_CONFIG = {
-  url: 'https://YOUR-PROJECT.supabase.co',
-  anonKey: 'YOUR_SUPABASE_ANON_KEY',
+  url: 'https://sxoaqxhiyovtqzxtjxqu.supabase.co',
+  anonKey: 'sb_publishable_pHrrkDnZYr0iDVxjAwFOBA_6UApX6zM',
   seasonNumber: 1,
 };

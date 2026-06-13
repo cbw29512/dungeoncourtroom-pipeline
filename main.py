@@ -324,7 +324,7 @@ def run_episode(question: str, source: str = "manual",
         update_episode_status(episode_id, "complete", youtube_id)
 
         # GAP 2 FIX: save question to history ONLY after successful completion
-        save_to_history([question])
+        # BUG 5: history saving now happens in scraper_node.py after successful episode completion
 
         # Clean temp audio (keep panels + state for reference)
         for f in episode_dir.glob("audio_*.wav"):

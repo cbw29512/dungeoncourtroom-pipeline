@@ -1,0 +1,20 @@
+name: Security Baseline
+on: [push, pull_request, workflow_dispatch]
+permissions: {contents: read}
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0, persist-credentials: false}
+      - shell: bash
+        run: |
+          pattern='-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|(AKIA|ASIA)[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{30,255}|github_pat_[A-Za-z0-9_]{50,255}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-(proj-|ant-)?[A-Za-z0-9_-]{20,}|sk_live_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}'
+          found=0
+          files="$(git grep -I -l -E "$pattern" HEAD -- . || true)"
+          names="$(git ls-files | grep -E '(^|/)(\.env|id_rsa|id_ed25519|credentials\.json|service-account\.json)$|\.(pem|p12|pfx)$' | grep -v -E '\.env\.example$|\.example\.(pem|key)$' || true)"
+          [[ -z "$files" ]] || { echo "Potential credential patterns:"; printf '%s\n' "$files"; found=1; }
+          [[ -z "$names" ]] || { echo "Sensitive filenames:"; printf '%s\n' "$names"; found=1; }
+          git log -p --all --no-ext-diff --no-renames --pretty=format: | grep -E -q "$pattern" && { echo "Potential credential pattern exists in Git history."; found=1; } || true
+          [[ "$found" -eq 0 ]] || { echo "Rotate real credentials before history cleanup."; exit 1; }
